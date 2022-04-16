@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Route Facts</string>
+    <string name="app_name">routefacts</string>
     <!-- TODO: Remove or change this placeholder text -->
     <string name="generate">Generate</string>
     <!-- TODO: Remove or change this placeholder text -->
@@ -9,4 +9,11 @@
     <string name="city">City</string>
     <string name="state">State</string>
     <string name="zip">Zip</string>
+    <string name="chkbxVoice">Enable voice read for facts</string>
+    <string name="chkbxLocation">Enable auto-update for location</string>
+    <string name="chkbxBackground">Enable background services</string>
+    <string name="txtPreviousLocations">Previously Visited Locations:</string>
+    <string name="txtPrevLocation1">San Antonio, Texas, 78212</string>
+    <string name="txtPrevLocation2">Houston, Texas, 77001</string>
+    <string name="txtPrevLocation3">Corpus Christi, Texas, 78336</string>
 </resources>
