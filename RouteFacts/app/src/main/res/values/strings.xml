@@ -16,4 +16,8 @@
     <string name="txtPrevLocation1">San Antonio, Texas, 78212</string>
     <string name="txtPrevLocation2">Houston, Texas, 77001</string>
     <string name="txtPrevLocation3">Corpus Christi, Texas, 78336</string>
+    <string name="settings">Settings</string>
+    <string name="main">Main</string>
+    <string name="routes">Routes</string>
+    <string name="history">History</string>
 </resources>

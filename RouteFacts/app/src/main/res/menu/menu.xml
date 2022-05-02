@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item
+        android:id="@+id/S"
+        android:icon="@android:drawable/ic_menu_preferences"
+        android:title="@string/settings" />
+    <item
+        android:id="@+id/M"
+        android:icon="@android:drawable/ic_dialog_map"
+        android:title="@string/main" />
+    <item
+        android:id="@+id/R"
+        android:icon="@android:drawable/ic_menu_directions"
+        android:title="@string/routes" />
+    <item
+        android:id="@+id/H"
+        android:icon="@android:drawable/ic_menu_myplaces"
+        android:title="@string/history" />
+</menu>
