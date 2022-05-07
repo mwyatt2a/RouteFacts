@@ -202,7 +202,7 @@ public class MainFragment extends Fragment {
                                 String state = obj.getString("state");
                                 Date calender = Calendar.getInstance(TimeZone.getTimeZone("EST")).getTime();
                                 Integer date = calender.getDay() + calender.getMonth()*31 + (calender.getYear()- 100)*372;
-                                db.updateDB(city, state, date);
+                                db.updateHistory(city, state, date);
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText(city + ", " + state);
                             } catch (JSONException e) {

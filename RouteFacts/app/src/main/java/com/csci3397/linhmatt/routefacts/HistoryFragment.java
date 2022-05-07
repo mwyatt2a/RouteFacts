@@ -67,7 +67,7 @@ public class HistoryFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_history, container, false);
 
         Database db = new Database(getActivity());
-        Cursor cursor = db.getDB();
+        Cursor cursor = db.getHistory();
         cursor.moveToFirst();
 
         LinearLayout layout = view.findViewById(R.id.layHistoryLinear);
