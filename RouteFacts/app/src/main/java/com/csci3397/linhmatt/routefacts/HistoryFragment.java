@@ -1,12 +1,17 @@
 package com.csci3397.linhmatt.routefacts;
 
+import android.database.Cursor;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
+import androidx.navigation.NavController;
+import androidx.navigation.Navigation;
 
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -59,6 +64,39 @@ public class HistoryFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_history, container, false);
+        View view = inflater.inflate(R.layout.fragment_history, container, false);
+
+        Database db = new Database(getActivity());
+        Cursor cursor = db.getDB();
+        cursor.moveToFirst();
+
+        LinearLayout layout = view.findViewById(R.id.layHistoryLinear);
+        for (int i = 0; i < cursor.getCount(); i++) {
+            TextView row = new TextView(getActivity());
+            String city = cursor.getString(0);
+            String state = cursor.getString(1);
+            Integer dateNum = cursor.getInt(2);
+            Integer year = dateNum/372;
+            Integer month = (dateNum - year*372)/31 + 1;
+            Integer day = (dateNum - year*372 - (month-1)*31) + 1;
+            row.setText(city + ", " + state + ": " + month + "/" + day + "/" + year);
+            row.setTextSize(20);
+            row.setPaddingRelative(0,25,0,25);
+            View.OnClickListener listener = new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    NavController navController = Navigation.findNavController(getActivity(), R.id.fragment);
+                    Bundle bundle = new Bundle();
+                    bundle.putString("city", city);
+                    bundle.putString("state", state);
+                    navController.navigate(R.id.mainFragment, bundle);
+                }
+            };
+            row.setOnClickListener(listener);
+            layout.addView(row);
+            cursor.moveToNext();
+        }
+
+        return view;
     }
 }
