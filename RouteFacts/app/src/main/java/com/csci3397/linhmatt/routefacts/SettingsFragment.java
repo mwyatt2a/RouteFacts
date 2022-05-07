@@ -1,5 +1,6 @@
 package com.csci3397.linhmatt.routefacts;
 
+import android.database.Cursor;
 import android.os.Bundle;
 
 import androidx.fragment.app.Fragment;
@@ -7,6 +8,9 @@ import androidx.fragment.app.Fragment;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.CheckBox;
+import android.widget.CompoundButton;
+import android.widget.Toast;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -59,6 +63,63 @@ public class SettingsFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         // Inflate the layout for this fragment
-        return inflater.inflate(R.layout.fragment_settings, container, false);
+        View view = inflater.inflate(R.layout.fragment_settings, container, false);
+
+        Database db = new Database(getActivity());
+        Cursor cursor = db.getSettings();
+        cursor.moveToFirst();
+        boolean voice = false;
+        boolean auto = false;
+        boolean background = false;
+
+        for (int i = 0; i < cursor.getCount(); i++) {
+            if (cursor.getString(0).equals("voice")) voice = true;
+            if (cursor.getString(0).equals("auto")) auto = true;
+            if (cursor.getString(0).equals("background")) background = true;
+            cursor.moveToNext();
+        }
+
+        if (voice) {
+            CheckBox box = view.findViewById(R.id.chkbxVoice);
+            box.setChecked(true);
+        }
+        if (auto) {
+            CheckBox box = view.findViewById(R.id.chkbxLocation);
+            box.setChecked(true);
+        }
+        if (background) {
+            CheckBox box = view.findViewById(R.id.chkbxBackground);
+            box.setChecked(true);
+        }
+
+        CompoundButton.OnCheckedChangeListener voiceListener = new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton cb, boolean b) {
+                db.updateSettings("voice");
+            }
+        };
+
+        CompoundButton.OnCheckedChangeListener autoListener = new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton cb, boolean b) {
+                db.updateSettings("auto");
+            }
+        };
+
+        CompoundButton.OnCheckedChangeListener backgroundListener = new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton cb, boolean b) {
+                db.updateSettings("background");
+            }
+        };
+
+        CheckBox voiceBox = view.findViewById(R.id.chkbxVoice);
+        voiceBox.setOnCheckedChangeListener(voiceListener);
+        CheckBox autoBox = view.findViewById(R.id.chkbxLocation);
+        autoBox.setOnCheckedChangeListener(autoListener);
+        CheckBox backgroundBox = view.findViewById(R.id.chkbxBackground);
+        backgroundBox.setOnCheckedChangeListener(backgroundListener);
+
+        return view;
     }
 }
