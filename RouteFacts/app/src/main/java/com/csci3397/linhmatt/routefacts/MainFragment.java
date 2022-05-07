@@ -37,6 +37,9 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
 import org.json.*;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
 
 /**
  * A simple {@link Fragment} subclass.
@@ -91,12 +94,18 @@ public class MainFragment extends Fragment {
         // Inflate the layout for this fragment
         View view = inflater.inflate(R.layout.fragment_main, container, false);
 
+        if (getArguments() != null) {
+            String city = getArguments().getString("city", "~");
+            String state = getArguments().getString("state", "~");
+            generate(view, true, city, state);
+        }
+
         View.OnClickListener gen = new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                 placeView.setText("Loading...");
-                generate(view);
+                generate(view, false, "", "");
             }
         };
 
@@ -106,45 +115,51 @@ public class MainFragment extends Fragment {
         return view;
     }
 
-    public void generate(View view) {
+    public void generate(View view, boolean loadLoc, String City, String State) {
 
-        LocationManager locationManager = (LocationManager) getActivity().getSystemService(getActivity().LOCATION_SERVICE);
-        boolean isenabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
+        if (loadLoc) {
+            TextView placeView = view.findViewById(R.id.txtMainPlace);
+            placeView.setText(City + ", " + State);
+        }
+        else {
+            LocationManager locationManager = (LocationManager) getActivity().getSystemService(getActivity().LOCATION_SERVICE);
+            boolean isenabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER);
 
-        if (isenabled) {
-            LocationRequest locationRequest = LocationRequest.create();
-            locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
-            locationRequest.setInterval(5000);
-            locationRequest.setFastestInterval(2000);
+            if (isenabled) {
+                LocationRequest locationRequest = LocationRequest.create();
+                locationRequest.setPriority(LocationRequest.PRIORITY_HIGH_ACCURACY);
+                locationRequest.setInterval(5000);
+                locationRequest.setFastestInterval(2000);
 
-            if (ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-                // TODO: Consider calling
-                //    ActivityCompat#requestPermissions
-                // here to request the missing permissions, and then overriding
-                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-                //                                          int[] grantResults)
-                // to handle the case where the user grants the permission. See the documentation
-                // for ActivityCompat#requestPermissions for more details.
-                requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
-            }
-            LocationServices.getFusedLocationProviderClient(getActivity())
-                    .requestLocationUpdates(locationRequest, new LocationCallback() {
-                        @Override
-                        public void onLocationResult(@NonNull LocationResult locationResult) {
-                            super.onLocationResult(locationResult);
-                            LocationServices.getFusedLocationProviderClient(getActivity())
-                                    .removeLocationUpdates(this);
-                            if (locationResult != null) {
-                                double latitude = locationResult.getLastLocation().getLatitude();
-                                double longitude = locationResult.getLastLocation().getLongitude();
-                                getLocation(latitude, longitude, view);
-                            } else {
-                                Toast.makeText(getActivity(), "Something Went Wrong With GPS", Toast.LENGTH_SHORT).show();
+                if (ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(getActivity(), Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    // TODO: Consider calling
+                    //    ActivityCompat#requestPermissions
+                    // here to request the missing permissions, and then overriding
+                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                    //                                          int[] grantResults)
+                    // to handle the case where the user grants the permission. See the documentation
+                    // for ActivityCompat#requestPermissions for more details.
+                    requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+                }
+                LocationServices.getFusedLocationProviderClient(getActivity())
+                        .requestLocationUpdates(locationRequest, new LocationCallback() {
+                            @Override
+                            public void onLocationResult(@NonNull LocationResult locationResult) {
+                                super.onLocationResult(locationResult);
+                                LocationServices.getFusedLocationProviderClient(getActivity())
+                                        .removeLocationUpdates(this);
+                                if (locationResult != null) {
+                                    double latitude = locationResult.getLastLocation().getLatitude();
+                                    double longitude = locationResult.getLastLocation().getLongitude();
+                                    getLocation(latitude, longitude, view);
+                                } else {
+                                    Toast.makeText(getActivity(), "Something Went Wrong With GPS", Toast.LENGTH_SHORT).show();
+                                }
                             }
-                        }
-                    }, Looper.getMainLooper());
-        } else {
-            Toast.makeText(getActivity(), "GPS Is Disabled", Toast.LENGTH_LONG).show();
+                        }, Looper.getMainLooper());
+            } else {
+                Toast.makeText(getActivity(), "GPS Is Disabled", Toast.LENGTH_LONG).show();
+            }
         }
     }
 
@@ -152,6 +167,7 @@ public class MainFragment extends Fragment {
     void getLocation(double lat, double lon, View view) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        Database db = new Database(getActivity());
         boolean isAvailable = false;
         if (networkCapabilities != null) {
             if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
@@ -184,6 +200,9 @@ public class MainFragment extends Fragment {
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
                                 String city = obj.getString("city");
                                 String state = obj.getString("state");
+                                Date calender = Calendar.getInstance(TimeZone.getTimeZone("EST")).getTime();
+                                Integer date = calender.getDay() + calender.getMonth()*31 + (calender.getYear()- 100)*372;
+                                db.updateDB(city, state, date);
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText(city + ", " + state);
                             } catch (JSONException e) {
