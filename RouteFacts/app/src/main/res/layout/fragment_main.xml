@@ -41,7 +41,7 @@
         android:id="@+id/txtMainFact"
         android:layout_width="354dp"
         android:layout_height="293dp"
-        android:text="In San Antonio, there is a university called Trinity University. In that university there is a student name Matthew Wyatt."
+        android:text="Not Generated"
         android:textColor="@color/black"
         android:textSize="20sp"
         app:layout_constraintBottom_toBottomOf="parent"
