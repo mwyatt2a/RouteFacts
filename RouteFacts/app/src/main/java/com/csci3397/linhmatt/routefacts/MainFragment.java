@@ -42,12 +42,14 @@ import com.google.android.gms.location.LocationServices;
 import org.json.*;
 import org.w3c.dom.Text;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.TimeZone;
 
 /**
@@ -65,6 +67,8 @@ public class MainFragment extends Fragment {
     // TODO: Rename and change types of parameters
     private String mParam1;
     private String mParam2;
+    List<String> storedfacts = new ArrayList<>();
+    int idx = 0;
 
     TextToSpeech textToSpeech;
 
@@ -127,6 +131,47 @@ public class MainFragment extends Fragment {
         Button mainGen = view.findViewById(R.id.btnMainGenerate);
         mainGen.setOnClickListener(gen);
 
+        Button prevFact = view.findViewById(R.id.btnMainPrevious);
+        Button nextFact = view.findViewById(R.id.btnMainNext);
+        TextView mainF = view.findViewById(R.id.txtMainFact);
+        prevFact.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int len = storedfacts.size();
+                if (storedfacts.isEmpty()) {
+                    //do nothing
+                } else {
+                    if (idx==0){ //display firstfact
+                        mainF.setText(storedfacts.get(idx));
+                    } else {
+                        if(idx<len && idx>0){ //if idx is less than length, ok to subtract
+                            idx-=1; //
+                            mainF.setText(storedfacts.get(idx));
+                        }
+                    }
+                }
+            }
+        });
+
+        nextFact.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                int len = storedfacts.size();
+                if (storedfacts.isEmpty()) {
+                    //do nothing
+                } else {
+                    if (idx==(len-1)) { //if idx is the max length-1, display last fact
+                        mainF.setText(storedfacts.get((len-1)));
+                    } else {
+                        if(idx<len && idx>0){ //if idx is less than length, ok to add
+                            idx+=1; //
+                            mainF.setText(storedfacts.get(idx));
+                        }
+                    }
+                }
+            }
+        });
+
         return view;
     }
 
@@ -148,6 +193,7 @@ public class MainFragment extends Fragment {
                 }
             }
             getPlaces(City, view, exists, Lat, Lon);
+            //getPlaces("San Antonio", view, exists, Lat, Lon);
         }
         else {
             LocationManager locationManager = (LocationManager) getActivity().getSystemService(getActivity().LOCATION_SERVICE);
@@ -292,15 +338,14 @@ public class MainFragment extends Fragment {
                             throw new IOException();
                         } else {
                             try {
-                                JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
+                                int numplaces = new JSONObject(responseBody.string()).getJSONArray("features").length();
+                                JSONArray allplaces = new JSONObject(responseBody.string()).getJSONArray("features");
+                                int randidx = getRandIndex(numplaces);
+                                JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(randidx).getJSONObject("properties");
                                 String name = obj.getString("name"); //get place name for wikipedia article
-
-
-                                
-                                fact.setText(name);
-                                //getFact(name, view, tts);
-
-
+                                //fact.setText(name);
+                                //pass in all places found from city name
+                                getFact(name, view, tts, allplaces);
 
                             } catch (JSONException e) {
                                 fact.setText("Error2");
@@ -315,7 +360,7 @@ public class MainFragment extends Fragment {
     }
 
     //getFact -- use wiki textextract api to get pure text from article
-    void getFact(String placename, View view, boolean tts) {
+    void getFact(String placename, View view, boolean tts, JSONArray allplaces) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
         boolean isAvailable = false;
@@ -350,12 +395,27 @@ public class MainFragment extends Fragment {
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages");
                                 Iterator<String> keyarr = obj.keys(); //get page keys
                                 String key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
+
+                                int max = allplaces.length();
+
                                 if(key.equals("-1")) {
-                                    placeinfo[0] = "no description";
+
+                                    while(key.equals("-1")){
+                                        int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
+                                        JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
+                                        String name = newobj.getString("name"); //get place name for wikipedia article
+                                        Iterator<String> keyarr2 = obj.keys(); //get page key
+                                        key = keyarr2.next();
+                                    }
+                                    JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
+                                    String factdescript = page.getString("extract");
+                                    storedfacts.add(factdescript);
+                                    placeinfo[0] = factdescript;
                                 } else {
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
                                     String factdescript = page.getString("extract");
                                     placeinfo[0] = factdescript;
+                                    storedfacts.add(factdescript);
                                 }
 
                             } catch (JSONException e) {
@@ -381,5 +441,12 @@ public class MainFragment extends Fragment {
         }
     }
 
-    
+    int getRandIndex(Integer max) {
+        // creating an object of Random class
+        Random random = new Random();
+        // Generates random integers 0 to max-1
+        int idx = random.nextInt(max);
+        return idx;
+    }
+   
 }
