@@ -44,6 +44,7 @@ import org.w3c.dom.Text;
 
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -110,6 +111,7 @@ public class MainFragment extends Fragment {
             String city = getArguments().getString("city", "~");
             String state = getArguments().getString("state", "~");
             generate(view, true, city, state);
+            getInterestingPlaces(city, view);
         }
 
         View.OnClickListener gen = new View.OnClickListener() {
@@ -129,7 +131,7 @@ public class MainFragment extends Fragment {
 
     public void getPlaces(String city, View view, boolean tts) {
         TextView fact = view.findViewById(R.id.txtMainFact);
-        fact.setText("Loading...");
+        //fact.setText("Loading...");
         if (tts) {
             textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
                 @Override
@@ -202,8 +204,7 @@ public class MainFragment extends Fragment {
             }
         }
     }
-
-
+    
     void getLocation(double lat, double lon, View view) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
@@ -269,4 +270,169 @@ public class MainFragment extends Fragment {
             Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
         }
     }
+    
+    //get longitude and latitude from city
+    double[] getLonLat(String city, View view) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        Database db = new Database(getActivity());
+        boolean isAvailable = false;
+        if (networkCapabilities != null) {
+            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                isAvailable = true;
+            } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                isAvailable = true;
+            }
+        }
+        //initial value
+        double[] citycoord = {0.0, 0.0};
+        if (isAvailable) {
+            OkHttpClient client = new OkHttpClient();
+            //from string name of the city, get the latitude and longitiude of the city
+            String url = "https://api.opentripmap.com/0.1/en/places/geoname?apikey=5ae2e3f221c38a28845f05b6612704727243708fa850b3b1f3203aa8&name=" + city;
+            Request request = new Request.Builder().url(url).build();
+            Call call = client.newCall(request);
+            call.enqueue(new Callback() {
+                @Override
+                public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                    Toast.makeText(getContext(), "Error Getting Data LonLat for city", Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                    try (ResponseBody responseBody = response.body()) {
+                        if (!response.isSuccessful()) {
+                            throw new IOException();
+                        } else {
+                            try {
+                                JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
+                                Double latitude = obj.getDouble("lat");
+                                Double longitude = obj.getDouble("lon");
+                                citycoord[0] = latitude;
+                                citycoord[1] = longitude;
+                            } catch (JSONException e) {
+
+                            }
+                        }
+                    }
+                }
+            });
+            return citycoord;
+        } else {
+            Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
+            return citycoord;
+        }
+    }
+    //
+    void getInterestingPlaces(String city, View view) {
+        double[] coordarr = getLonLat(city, view);
+        double lat = coordarr[0];
+        double lon = coordarr[1];
+        ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        Database db = new Database(getActivity());
+        boolean isAvailable = false;
+        if (networkCapabilities != null) {
+            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                isAvailable = true;
+            } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                isAvailable = true;
+            }
+        }
+
+        TextView viewFact = view.findViewById(R.id.txtMainFact);
+
+        if (isAvailable) {
+            OkHttpClient client = new OkHttpClient();
+            String url = "https://api.opentripmap.com/0.1/en/places/radius?apikey=5ae2e3f221c38a28845f05b6612704727243708fa850b3b1f3203aa8&radius=1000&lon=" + lon + "&lat=" + lat;
+            Request request = new Request.Builder().url(url).build();
+            Call call = client.newCall(request);
+            call.enqueue(new Callback() {
+                @Override
+                public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                    Toast.makeText(getContext(), "Error Getting Data", Toast.LENGTH_SHORT).show();
+                }
+
+                @Override
+                public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                    try (ResponseBody responseBody = response.body()) {
+                        if (!response.isSuccessful()) {
+                            viewFact.setText("Error");
+                            throw new IOException();
+                        } else {
+                            try {
+                                JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
+                                String name = obj.getString("name"); //get place name for wikipedia article
+                                String randfact = getFact(name, view);
+                                viewFact.setText(randfact);
+                            } catch (JSONException e) {
+                                viewFact.setText("Error2");
+                            }
+                        }
+                    }
+                }
+            });
+        } else {
+            Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    //getFact -- use wiki textextract api to get pure text from article
+    String getFact(String placename, View view) {
+        ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        Database db = new Database(getActivity());
+        boolean isAvailable = false;
+        if (networkCapabilities != null) {
+            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                isAvailable = true;
+            } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                isAvailable = true;
+            }
+        }
+        String[] placeinfo = {""};
+        if (isAvailable) {
+            OkHttpClient client = new OkHttpClient();
+            //add this to url --> &exsentences=3 to limit to 3 sentences
+            String url = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exlimit=1&explaintext=1&exsectionformat=plain&format=json&titles=" + placename;
+            Request request = new Request.Builder().url(url).build();
+            Call call = client.newCall(request);
+            call.enqueue(new Callback() {
+                @Override
+                public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                    Toast.makeText(getContext(), "Error Getting FactInfo for place", Toast.LENGTH_SHORT).show();
+                }
+                @Override
+                public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                    try (ResponseBody responseBody = response.body()) {
+                        if (!response.isSuccessful()) {
+                            throw new IOException();
+                        } else {
+                            try {
+                                JSONObject obj = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages");
+                                Iterator<String> keyarr = obj.keys(); //get page keys
+                                String key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
+                                if(key=="-1") {
+                                    placeinfo[0] = "no description";
+                                } else {
+                                    JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
+                                    String factdescript = page.getString("extract");
+                                    placeinfo[0] = factdescript;
+                                }
+
+                            } catch (JSONException e) {
+
+                            }
+                        }
+                    }
+                }
+            });
+            return placeinfo[0];
+        } else {
+            Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
+            return placeinfo[0];
+        }
+    }
+
+    
 }
