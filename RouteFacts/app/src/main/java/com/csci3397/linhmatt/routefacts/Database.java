@@ -13,7 +13,7 @@ public class Database extends SQLiteOpenHelper {
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-        db.execSQL("create Table history(city Text, state Text, date Integer)");
+        db.execSQL("create Table history(city Text, state Text, date Integer, lat Real, lon Real)");
         db.execSQL("create Table settings(settingOn Text)");
     }
 
@@ -23,7 +23,7 @@ public class Database extends SQLiteOpenHelper {
         db.execSQL("drop Table if exists settings");
     }
 
-    public void updateHistory(String city, String state, Integer date) {
+    public void updateHistory(String city, String state, Integer date, Double lat, Double lon) {
         SQLiteDatabase db = this.getWritableDatabase();
         Cursor cursor = getHistory();
         cursor.moveToFirst();
@@ -41,6 +41,8 @@ public class Database extends SQLiteOpenHelper {
             contentValues.put("city", city);
             contentValues.put("state", state);
             contentValues.put("date", date);
+            contentValues.put("lat", lat);
+            contentValues.put("lon", lon);
             db.insert("history", null, contentValues);
         }
     }
