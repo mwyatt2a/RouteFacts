@@ -103,6 +103,14 @@ public class SettingsFragment extends Fragment {
             @Override
             public void onCheckedChanged(CompoundButton cb, boolean b) {
                 db.updateSettings("auto");
+                if (b) {
+                    CheckBox backgroundBox = view.findViewById(R.id.chkbxBackground);
+                    backgroundBox.setVisibility(View.VISIBLE);
+                }
+                else {
+                    CheckBox backgroundBox = view.findViewById(R.id.chkbxBackground);
+                    backgroundBox.setVisibility(View.INVISIBLE);
+                }
             }
         };
 
@@ -119,6 +127,12 @@ public class SettingsFragment extends Fragment {
         autoBox.setOnCheckedChangeListener(autoListener);
         CheckBox backgroundBox = view.findViewById(R.id.chkbxBackground);
         backgroundBox.setOnCheckedChangeListener(backgroundListener);
+        if (auto) {
+            backgroundBox.setVisibility(View.VISIBLE);
+        }
+        else {
+            backgroundBox.setVisibility(View.INVISIBLE);
+        }
 
         return view;
     }

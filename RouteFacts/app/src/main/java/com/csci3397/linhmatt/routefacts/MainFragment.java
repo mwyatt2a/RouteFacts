@@ -3,6 +3,7 @@ package com.csci3397.linhmatt.routefacts;
 import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.location.LocationManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkCapabilities;
@@ -12,7 +13,9 @@ import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.fragment.app.Fragment;
 
+import android.os.Handler;
 import android.os.Looper;
+import android.speech.tts.TextToSpeech;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -37,8 +40,13 @@ import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
 
 import org.json.*;
+import org.w3c.dom.Text;
+
 import java.util.Calendar;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
 import java.util.TimeZone;
 
 /**
@@ -57,6 +65,8 @@ public class MainFragment extends Fragment {
     private String mParam1;
     private String mParam2;
 
+    TextToSpeech textToSpeech;
+
     public MainFragment() {
         // Required empty public constructor
     }
@@ -71,6 +81,7 @@ public class MainFragment extends Fragment {
      */
     // TODO: Rename and change types and number of parameters
     public static MainFragment newInstance(String param1, String param2) {
+
         MainFragment fragment = new MainFragment();
         Bundle args = new Bundle();
         args.putString(ARG_PARAM1, param1);
@@ -86,6 +97,7 @@ public class MainFragment extends Fragment {
             mParam1 = getArguments().getString(ARG_PARAM1);
             mParam2 = getArguments().getString(ARG_PARAM2);
         }
+        textToSpeech = null;
     }
 
     @Override
@@ -115,11 +127,39 @@ public class MainFragment extends Fragment {
         return view;
     }
 
+    public void getPlaces(String city, View view, boolean tts) {
+        TextView fact = view.findViewById(R.id.txtMainFact);
+        fact.setText("Loading...");
+        if (tts) {
+            textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
+                @Override
+                public void onInit(int status) {
+                    if (status == TextToSpeech.SUCCESS) {
+                        textToSpeech.speak("In San Antonio, there is a university called Trinity University. In that university there is a student name Matthew Wyatt.", TextToSpeech.QUEUE_FLUSH, null, "id");
+                    }
+                }
+            });
+        }
+    }
+
     public void generate(View view, boolean loadLoc, String City, String State) {
 
         if (loadLoc) {
+            Database db = new Database(getActivity());
             TextView placeView = view.findViewById(R.id.txtMainPlace);
             placeView.setText(City + ", " + State);
+            Cursor cursor = db.getSettings();
+            cursor.moveToFirst();
+            boolean exists = false;
+            for (int i = 0; i < cursor.getCount(); i++) {
+                if (cursor.getString(0).equals("voice")) {
+                    exists = true;
+                }
+                else {
+                    cursor.moveToNext();
+                }
+            }
+            getPlaces(City, view, exists);
         }
         else {
             LocationManager locationManager = (LocationManager) getActivity().getSystemService(getActivity().LOCATION_SERVICE);
@@ -205,6 +245,18 @@ public class MainFragment extends Fragment {
                                 db.updateHistory(city, state, date);
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText(city + ", " + state);
+                                Cursor cursor = db.getSettings();
+                                cursor.moveToFirst();
+                                boolean exists = false;
+                                for (int i = 0; i < cursor.getCount(); i++) {
+                                    if (cursor.getString(0).equals("voice")) {
+                                        exists = true;
+                                    }
+                                    else {
+                                        cursor.moveToNext();
+                                    }
+                                }
+                                getPlaces(city, view, exists);
                             } catch (JSONException e) {
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText("Error2");
