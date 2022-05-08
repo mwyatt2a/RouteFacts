@@ -110,8 +110,9 @@ public class MainFragment extends Fragment {
         if (getArguments() != null) {
             String city = getArguments().getString("city", "~");
             String state = getArguments().getString("state", "~");
-            generate(view, true, city, state);
-            getInterestingPlaces(city, view);
+            Double lat = getArguments().getDouble("lat", 0);
+            Double lon = getArguments().getDouble("lon", 0);
+            generate(view, true, city, state, lat, lon);
         }
 
         View.OnClickListener gen = new View.OnClickListener() {
@@ -119,7 +120,7 @@ public class MainFragment extends Fragment {
             public void onClick(View v) {
                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                 placeView.setText("Loading...");
-                generate(view, false, "", "");
+                generate(view, false, "", "", 0.0, 0.0);
             }
         };
 
@@ -129,22 +130,7 @@ public class MainFragment extends Fragment {
         return view;
     }
 
-    public void getPlaces(String city, View view, boolean tts) {
-        TextView fact = view.findViewById(R.id.txtMainFact);
-        //fact.setText("Loading...");
-        if (tts) {
-            textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
-                @Override
-                public void onInit(int status) {
-                    if (status == TextToSpeech.SUCCESS) {
-                        textToSpeech.speak("In San Antonio, there is a university called Trinity University. In that university there is a student name Matthew Wyatt.", TextToSpeech.QUEUE_FLUSH, null, "id");
-                    }
-                }
-            });
-        }
-    }
-
-    public void generate(View view, boolean loadLoc, String City, String State) {
+    public void generate(View view, boolean loadLoc, String City, String State, Double Lat, Double Lon) {
 
         if (loadLoc) {
             Database db = new Database(getActivity());
@@ -161,7 +147,7 @@ public class MainFragment extends Fragment {
                     cursor.moveToNext();
                 }
             }
-            getPlaces(City, view, exists);
+            getPlaces(City, view, exists, Lat, Lon);
         }
         else {
             LocationManager locationManager = (LocationManager) getActivity().getSystemService(getActivity().LOCATION_SERVICE);
@@ -243,7 +229,7 @@ public class MainFragment extends Fragment {
                                 String state = obj.getString("state");
                                 Date calender = Calendar.getInstance(TimeZone.getTimeZone("EST")).getTime();
                                 Integer date = calender.getDay() + calender.getMonth()*31 + (calender.getYear()- 100)*372;
-                                db.updateHistory(city, state, date);
+                                db.updateHistory(city, state, date, lat, lon);
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText(city + ", " + state);
                                 Cursor cursor = db.getSettings();
@@ -257,7 +243,7 @@ public class MainFragment extends Fragment {
                                         cursor.moveToNext();
                                     }
                                 }
-                                getPlaces(city, view, exists);
+                                getPlaces(city, view, exists, lat, lon);
                             } catch (JSONException e) {
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText("Error2");
@@ -271,11 +257,13 @@ public class MainFragment extends Fragment {
         }
     }
     
-    //get longitude and latitude from city
-    double[] getLonLat(String city, View view) {
+
+    void getPlaces(String city, View view, boolean tts, double lat, double lon) {
+        TextView fact = view.findViewById(R.id.txtMainFact);
+        fact.setText("Loading...");
+
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-        Database db = new Database(getActivity());
         boolean isAvailable = false;
         if (networkCapabilities != null) {
             if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
@@ -284,63 +272,6 @@ public class MainFragment extends Fragment {
                 isAvailable = true;
             }
         }
-        //initial value
-        double[] citycoord = {0.0, 0.0};
-        if (isAvailable) {
-            OkHttpClient client = new OkHttpClient();
-            //from string name of the city, get the latitude and longitiude of the city
-            String url = "https://api.opentripmap.com/0.1/en/places/geoname?apikey=5ae2e3f221c38a28845f05b6612704727243708fa850b3b1f3203aa8&name=" + city;
-            Request request = new Request.Builder().url(url).build();
-            Call call = client.newCall(request);
-            call.enqueue(new Callback() {
-                @Override
-                public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                    Toast.makeText(getContext(), "Error Getting Data LonLat for city", Toast.LENGTH_SHORT).show();
-                }
-
-                @Override
-                public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                    try (ResponseBody responseBody = response.body()) {
-                        if (!response.isSuccessful()) {
-                            throw new IOException();
-                        } else {
-                            try {
-                                JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
-                                Double latitude = obj.getDouble("lat");
-                                Double longitude = obj.getDouble("lon");
-                                citycoord[0] = latitude;
-                                citycoord[1] = longitude;
-                            } catch (JSONException e) {
-
-                            }
-                        }
-                    }
-                }
-            });
-            return citycoord;
-        } else {
-            Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
-            return citycoord;
-        }
-    }
-    //
-    void getInterestingPlaces(String city, View view) {
-        double[] coordarr = getLonLat(city, view);
-        double lat = coordarr[0];
-        double lon = coordarr[1];
-        ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-        Database db = new Database(getActivity());
-        boolean isAvailable = false;
-        if (networkCapabilities != null) {
-            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
-                isAvailable = true;
-            } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
-                isAvailable = true;
-            }
-        }
-
-        TextView viewFact = view.findViewById(R.id.txtMainFact);
 
         if (isAvailable) {
             OkHttpClient client = new OkHttpClient();
@@ -357,16 +288,22 @@ public class MainFragment extends Fragment {
                 public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
                     try (ResponseBody responseBody = response.body()) {
                         if (!response.isSuccessful()) {
-                            viewFact.setText("Error");
+                            fact.setText("Error");
                             throw new IOException();
                         } else {
                             try {
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONArray("features").getJSONObject(0).getJSONObject("properties");
                                 String name = obj.getString("name"); //get place name for wikipedia article
-                                String randfact = getFact(name, view);
-                                viewFact.setText(randfact);
+
+
+                                
+                                fact.setText(name);
+                                //getFact(name, view, tts);
+
+
+
                             } catch (JSONException e) {
-                                viewFact.setText("Error2");
+                                fact.setText("Error2");
                             }
                         }
                     }
@@ -378,10 +315,9 @@ public class MainFragment extends Fragment {
     }
 
     //getFact -- use wiki textextract api to get pure text from article
-    String getFact(String placename, View view) {
+    void getFact(String placename, View view, boolean tts) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
-        Database db = new Database(getActivity());
         boolean isAvailable = false;
         if (networkCapabilities != null) {
             if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
@@ -390,7 +326,7 @@ public class MainFragment extends Fragment {
                 isAvailable = true;
             }
         }
-        String[] placeinfo = {""};
+        String[] placeinfo = {"avs"};
         if (isAvailable) {
             OkHttpClient client = new OkHttpClient();
             //add this to url --> &exsentences=3 to limit to 3 sentences
@@ -408,11 +344,13 @@ public class MainFragment extends Fragment {
                         if (!response.isSuccessful()) {
                             throw new IOException();
                         } else {
+                            //placeinfo[0] = "checking try catch";
+                            TextView viewFact = view.findViewById(R.id.txtMainFact);
                             try {
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages");
                                 Iterator<String> keyarr = obj.keys(); //get page keys
                                 String key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
-                                if(key=="-1") {
+                                if(key.equals("-1")) {
                                     placeinfo[0] = "no description";
                                 } else {
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
@@ -421,16 +359,25 @@ public class MainFragment extends Fragment {
                                 }
 
                             } catch (JSONException e) {
-
                             }
+                            viewFact.setText(placeinfo[0]);
+                            if (tts) {
+                                textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
+                                    @Override
+                                    public void onInit(int status) {
+                                        if (status == TextToSpeech.SUCCESS) {
+                                            textToSpeech.speak(placeinfo[0], TextToSpeech.QUEUE_FLUSH, null, "id");
+                                        }
+                                    }
+                                });
+                            }
+
                         }
                     }
                 }
             });
-            return placeinfo[0];
         } else {
             Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
-            return placeinfo[0];
         }
     }
 
