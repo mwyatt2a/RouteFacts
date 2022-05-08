@@ -79,6 +79,8 @@ public class HistoryFragment extends Fragment {
             Integer year = dateNum/372;
             Integer month = (dateNum - year*372)/31 + 1;
             Integer day = (dateNum - year*372 - (month-1)*31) + 1;
+            Double lat = cursor.getDouble(3);
+            Double lon = cursor.getDouble(4);
             row.setText(city + ", " + state + ": " + month + "/" + day + "/" + year);
             row.setTextSize(20);
             row.setPaddingRelative(0,25,0,25);
@@ -89,6 +91,8 @@ public class HistoryFragment extends Fragment {
                     Bundle bundle = new Bundle();
                     bundle.putString("city", city);
                     bundle.putString("state", state);
+                    bundle.putDouble("lat", lat);
+                    bundle.putDouble("lon", lon);
                     navController.navigate(R.id.mainFragment, bundle);
                 }
             };
