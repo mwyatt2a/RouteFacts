@@ -401,11 +401,10 @@ public class MainFragment extends Fragment {
 
                                 if(key.equals("-1")) {
                                     String name = "";
-                                    while(key.equals("-1")){
-                                        int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
-                                        JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
-                                        name = newobj.getString("name"); //get place name for wikipedia article
-                                        getFact(name, view, tts, allplaces); //call function again for new place
+                                    int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
+                                    JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
+                                    name = newobj.getString("name"); //get place name for wikipedia article
+                                    getFact(name, view, tts, allplaces); //call function again for new place
                                     }
                                 } else {
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
