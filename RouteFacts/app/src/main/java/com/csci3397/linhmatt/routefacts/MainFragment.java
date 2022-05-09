@@ -69,6 +69,7 @@ public class MainFragment extends Fragment {
     private String mParam2;
     List<String> storedfacts = new ArrayList<>();
     int idx = 0;
+    String key = "";
 
     TextToSpeech textToSpeech;
 
@@ -394,23 +395,18 @@ public class MainFragment extends Fragment {
                             try {
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages");
                                 Iterator<String> keyarr = obj.keys(); //get page keys
-                                String key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
+                                key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
 
                                 int max = allplaces.length();
 
                                 if(key.equals("-1")) {
-
+                                    String name = "";
                                     while(key.equals("-1")){
                                         int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
                                         JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
-                                        String name = newobj.getString("name"); //get place name for wikipedia article
-                                        Iterator<String> keyarr2 = newobj.keys(); //get page key
-                                        key = keyarr2.next();
+                                        name = newobj.getString("name"); //get place name for wikipedia article
+                                        getFact(name, view, tts, allplaces); //call function again for new place
                                     }
-                                    JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
-                                    String factdescript = page.getString("extract");
-                                    storedfacts.add(factdescript);
-                                    placeinfo[0] = factdescript;
                                 } else {
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
                                     String factdescript = page.getString("extract");
