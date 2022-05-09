@@ -405,28 +405,26 @@ public class MainFragment extends Fragment {
                                     JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
                                     name = newobj.getString("name"); //get place name for wikipedia article
                                     getFact(name, view, tts, allplaces); //call function again for new place
-                                    }
                                 } else {
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
                                     String factdescript = page.getString("extract");
                                     placeinfo[0] = factdescript;
                                     storedfacts.add(factdescript);
-                                }
-
-                            } catch (JSONException e) {
-                            }
-                            viewFact.setText(placeinfo[0]);
-                            if (tts) {
-                                textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
-                                    @Override
-                                    public void onInit(int status) {
-                                        if (status == TextToSpeech.SUCCESS) {
-                                            textToSpeech.speak(placeinfo[0], TextToSpeech.QUEUE_FLUSH, null, "id");
-                                        }
+                                    viewFact.setText(placeinfo[0]);
+                                    if (tts) {
+                                        textToSpeech = new TextToSpeech(getActivity(), new TextToSpeech.OnInitListener() {
+                                            @Override
+                                            public void onInit(int status) {
+                                                if (status == TextToSpeech.SUCCESS) {
+                                                    textToSpeech.speak(placeinfo[0], TextToSpeech.QUEUE_FLUSH, null, "id");
+                                                }
+                                            }
+                                        });
                                     }
-                                });
-                            }
+                                }
+                            } catch (JSONException e) {
 
+                            }
                         }
                     }
                 }
