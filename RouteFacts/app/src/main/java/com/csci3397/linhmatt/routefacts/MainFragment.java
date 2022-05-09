@@ -404,7 +404,7 @@ public class MainFragment extends Fragment {
                                         int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
                                         JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
                                         String name = newobj.getString("name"); //get place name for wikipedia article
-                                        Iterator<String> keyarr2 = obj.keys(); //get page key
+                                        Iterator<String> keyarr2 = newobj.keys(); //get page key
                                         key = keyarr2.next();
                                     }
                                     JSONObject page = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages").getJSONObject(key);
@@ -448,5 +448,6 @@ public class MainFragment extends Fragment {
         int idx = random.nextInt(max);
         return idx;
     }
-   
+
+    
 }
