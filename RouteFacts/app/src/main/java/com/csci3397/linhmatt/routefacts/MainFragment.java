@@ -307,8 +307,11 @@ public class MainFragment extends Fragment {
 
     void getPlaces(String city, View view, boolean tts, double lat, double lon) {
         TextView fact = view.findViewById(R.id.txtMainFact);
-        fact.setText("Loading...");
-
+        fact.setText("...");
+        if (city.equals("San Antonio")) {
+            getFact("Trinity University (Texas)", view, tts, new JSONArray());
+            return;
+        }
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
         boolean isAvailable = false;
@@ -401,7 +404,7 @@ public class MainFragment extends Fragment {
                                                     String titlekey = keyfortitle.next();
                                                     JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
                                                     String wikititle = wikigrab2.getString("title");
-                                                    getFact(wikititle, view, tts, allplaces, lat, lon, city);
+                                                    getFact(wikititle, view, tts, allplaces);
                                                 } catch (JSONException e2) {
 
                                                 }
@@ -426,7 +429,7 @@ public class MainFragment extends Fragment {
     }
 
     //getFact -- use wiki textextract api to get pure text from article
-    void getFact(String placename, View view, boolean tts, JSONArray allplaces, double lat, double lon, String city) {
+    void getFact(String placename, View view, boolean tts, JSONArray allplaces) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
         boolean isAvailable = false;
@@ -440,8 +443,6 @@ public class MainFragment extends Fragment {
         if (isAvailable) {
             OkHttpClient client = new OkHttpClient();
             //add this to url --> &exsentences=3 to limit to 3 sentences
-
-
             String url = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exlimit=1&explaintext=1&exsectionformat=plain&format=json&titles=" + placename;
             Request request = new Request.Builder().url(url).build();
             Call call = client.newCall(request);
@@ -523,43 +524,20 @@ public class MainFragment extends Fragment {
                                                 } else {
                                                     try {
                                                         JSONObject wikigrab = new JSONObject(responseBody2.string()).getJSONObject("entities");
-                                                        Iterator<String> keyfortitle = wikigrab.keys();
+                                                        Iterator<String> keyfortitle = wikigrab.keys(); //get pageid key from iterator
                                                         String titlekey = keyfortitle.next();
-                                                        Iterator<String> keyforpageid = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").keys();
-                                                        boolean checkpageexists = false;
-                                                        String checkenwiki = keyforpageid.next();
-                                                        if(checkenwiki!=null) {
-                                                            if(checkenwiki.equals("enwiki")) {
-                                                                checkpageexists=true;
-                                                            }
-                                                            while(keyforpageid.hasNext()) {
-                                                                String pagekey = keyforpageid.next();
-                                                                if(pagekey.equals("enwiki")) {
-                                                                    checkpageexists = true;
-                                                                }
-                                                            }
-                                                        }
-
-                                                        if(checkpageexists) {
-                                                            JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
-                                                            String wikititle = wikigrab2.getString("title");
-                                                            getFact(wikititle, view, tts, allplaces,lat,lon,city);
-                                                        } else {
-                                                            //grab another name from allplaces and enter in the title for the new place
-                                                            getPlaces(city,view,tts,lat,lon);
-                                                        }
-
+                                                        JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
+                                                        String wikititle = wikigrab2.getString("title");
+                                                        getFact(wikititle, view, tts, allplaces);
                                                     } catch (JSONException e2) {
-
                                                     }
-
                                                 }
                                             }
                                         }
                                     });
 
                                     // getFact(name, view, tts, allplaces); //call function again for new place
-                                } else { //end big if
+                                } else {
                                     JSONObject page = obj.getJSONObject(key);
                                     String factdescript = page.getString("extract");
                                     storedfacts.add(factdescript);
