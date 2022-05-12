@@ -16,6 +16,7 @@ import androidx.fragment.app.Fragment;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -42,6 +43,7 @@ import com.google.android.gms.location.LocationServices;
 import org.json.*;
 import org.w3c.dom.Text;
 
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -68,6 +70,8 @@ public class MainFragment extends Fragment {
     private String mParam1;
     private String mParam2;
     List<String> storedfacts = new ArrayList<>();
+    List<String> storedwikiid = new ArrayList<>();
+    List<Integer> storedidx = new ArrayList<>();
     int idx = 0;
     String key = "";
 
@@ -139,9 +143,7 @@ public class MainFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 int len = storedfacts.size();
-                if (storedfacts.isEmpty()) {
-                    //do nothing
-                } else {
+                if (len > 0) {
                     if (idx==0){ //display firstfact
                         mainF.setText(storedfacts.get(idx));
                     } else {
@@ -150,6 +152,8 @@ public class MainFragment extends Fragment {
                             mainF.setText(storedfacts.get(idx));
                         }
                     }
+                } else {
+                    //do nothing
                 }
             }
         });
@@ -158,9 +162,8 @@ public class MainFragment extends Fragment {
             @Override
             public void onClick(View v) {
                 int len = storedfacts.size();
-                if (storedfacts.isEmpty()) {
+                if (len>0) {
                     //do nothing
-                } else {
                     if (idx==(len-1)) { //if idx is the max length-1, display last fact
                         mainF.setText(storedfacts.get((len-1)));
                     } else {
@@ -169,6 +172,8 @@ public class MainFragment extends Fragment {
                             mainF.setText(storedfacts.get(idx));
                         }
                     }
+                } else {
+                    //do nothing
                 }
             }
         });
@@ -193,7 +198,7 @@ public class MainFragment extends Fragment {
                     cursor.moveToNext();
                 }
             }
-            getPlaces(City, view, exists, Lat, Lon);
+            getPlaces(City, view, exists, Lat, Lon, storedwikiid);
             //getPlaces("San Antonio", view, exists, Lat, Lon);
         }
         else {
@@ -237,7 +242,7 @@ public class MainFragment extends Fragment {
             }
         }
     }
-    
+
     void getLocation(double lat, double lon, View view) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
@@ -290,7 +295,7 @@ public class MainFragment extends Fragment {
                                         cursor.moveToNext();
                                     }
                                 }
-                                getPlaces(city, view, exists, lat, lon);
+                                getPlaces(city, view, exists, lat, lon, storedwikiid);
                             } catch (JSONException e) {
                                 TextView placeView = view.findViewById(R.id.txtMainPlace);
                                 placeView.setText("Error2");
@@ -303,9 +308,9 @@ public class MainFragment extends Fragment {
             Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
         }
     }
-    
 
-    void getPlaces(String city, View view, boolean tts, double lat, double lon) {
+
+    void getPlaces(String city, View view, boolean tts, double lat, double lon, List<String> widList) {
         TextView fact = view.findViewById(R.id.txtMainFact);
         fact.setText("Loading...");
 
@@ -320,12 +325,102 @@ public class MainFragment extends Fragment {
             }
         }
 
+
+        if (isAvailable) {
+            //if stored wiki id list is not empty, do not bother trying to get list again
+            if (widList.size() > 0) {
+                int numplaces = widList.size();
+                Log.e("TAG", "widList size for getplaces is: " + numplaces);
+                int randidx = getRandIndex(numplaces);
+                String wikiid = widList.get(randidx);
+                getValidWikiId(city,view,tts,lat,lon,widList,wikiid, randidx);
+            } else {
+                //first get list of places within 1000m of lat and lon
+                OkHttpClient client = new OkHttpClient();
+                String url = "https://api.opentripmap.com/0.1/en/places/radius?apikey=5ae2e3f221c38a28845f05b6612704727243708fa850b3b1f3203aa8&radius=1000&lon=" + lon + "&lat=" + lat;
+                Request request = new Request.Builder().url(url).build();
+                Call call = client.newCall(request);
+                call.enqueue(new Callback() {
+                    @Override
+                    public void onFailure(@NotNull Call call, @NotNull IOException e) {
+                        Toast.makeText(getContext(), "Error Getting Data", Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
+                        try (ResponseBody responseBody = response.body()) {
+                            if (!response.isSuccessful()) {
+                                fact.setText("Error");
+                                throw new IOException();
+                            } else {
+                                try {
+                                    //store all the places within the nearest 1000 m
+                                    JSONArray allplaces = new JSONObject(responseBody.string()).getJSONArray("features");
+
+                                    //filter all blank names, take only those with wikipages
+                                    //make list of valid wiki ids
+                                    List<String> filteredplaces = new ArrayList<String>();
+                                    for (int i = 0; i < allplaces.length(); i++) {
+                                        JSONObject checkproperties = allplaces.getJSONObject(i).getJSONObject("properties");
+                                        Iterator<String> propertieskeys = checkproperties.keys();
+                                        boolean checkwid = false;
+                                        while(propertieskeys.hasNext()) {
+                                            String keyforproperties = propertieskeys.next();
+                                            if (keyforproperties.equals("wikidata")) {
+                                                checkwid = true;
+                                            }
+                                        }
+                                        if (checkwid) {
+                                            String wid = checkproperties.getString("wikidata");
+                                            filteredplaces.add(wid);
+                                        }
+                                    }
+                                    storedwikiid = filteredplaces;
+
+                                    //get random object (place)'s wikiid from list of stored wikiid
+                                    int numplaces = filteredplaces.size();
+                                    int randidx = getRandIndex(numplaces);
+                                    String wikiid = filteredplaces.get(randidx);
+                                    Log.e("TAG", "initial widList size for getplaces is: " + numplaces);
+                                    Log.e("TAG", "widList id for getvalidwikiid else is: " + wikiid);
+                                    getValidWikiId(city,view,tts,lat,lon,filteredplaces,wikiid, randidx);
+                                } catch (JSONException e) {
+                                    fact.setText("Test cats Error2");
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        } else {
+            Toast.makeText(getActivity(), "Not Connected To The Internet", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    void getValidWikiId(String city, View view, boolean tts, double lat, double lon, List<String> widList, String wid, Integer widx) {
+        TextView fact = view.findViewById(R.id.txtMainFact);
+        fact.setText("Loading...");
+
+        ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
+        boolean isAvailable = false;
+        if (networkCapabilities != null) {
+            if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)) {
+                isAvailable = true;
+            } else if (networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) {
+                isAvailable = true;
+            }
+        }
+
+        //check network available, we search for valid wikiarticle titles using arraylist of wikiids
         if (isAvailable) {
             OkHttpClient client = new OkHttpClient();
-            String url = "https://api.opentripmap.com/0.1/en/places/radius?apikey=5ae2e3f221c38a28845f05b6612704727243708fa850b3b1f3203aa8&radius=1000&lon=" + lon + "&lat=" + lat;
-            Request request = new Request.Builder().url(url).build();
-            Call call = client.newCall(request);
-            call.enqueue(new Callback() {
+            //go find the wiki article title to pass in for last api that extracts text
+            //https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&ids=Q4347159&sitefilter=enwiki
+            String nurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&sitefilter=enwiki&ids=" + wid;
+            Request wikidataRequest = new Request.Builder().url(nurl).build();
+            Call call2 = client.newCall(wikidataRequest);
+            call2.enqueue(new Callback() {
                 @Override
                 public void onFailure(@NotNull Call call, @NotNull IOException e) {
                     Toast.makeText(getContext(), "Error Getting Data", Toast.LENGTH_SHORT).show();
@@ -333,89 +428,55 @@ public class MainFragment extends Fragment {
 
                 @Override
                 public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                    try (ResponseBody responseBody = response.body()) {
+                    try (ResponseBody responseBody2 = response.body()) {
                         if (!response.isSuccessful()) {
                             fact.setText("Error");
                             throw new IOException();
                         } else {
                             try {
-                                JSONArray allplaces = new JSONObject(responseBody.string()).getJSONArray("features");
-                                int numplaces = allplaces.length();
-                                int randidx = getRandIndex(numplaces);
-                                JSONObject obj = allplaces.getJSONObject(randidx).getJSONObject("properties");
-                                String name = obj.getString("name"); //get place name for wikipedia article
-                                String wikiid = ""; //get wiki id
-                                if(!name.equals("")) {
-                                    Iterator<String> checkexistwiki = obj.keys();
-                                    boolean checkwikidata = false;
-                                    while(checkexistwiki.hasNext()) {
-                                        String keyforproperties = checkexistwiki.next();
-                                        if (keyforproperties.equals("wikidata")) {
-                                            checkwikidata = true;
+                                //get all entities from wikiid
+                                JSONObject wikigrab = new JSONObject(responseBody2.string()).getJSONObject("entities");
+                                //titlekey is wikiid
+                                Iterator<String> keyfortitle = wikigrab.keys();
+                                String titlekey = keyfortitle.next();
+
+                                //check if enwiki has an article, commonswiki is no good and empty is no good
+                                JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks");
+                                Iterator<String> keyforsitelinks = wikigrab2.keys();
+                                boolean checkwikitype = false;
+                                if (keyforsitelinks.hasNext()) {
+                                    while (keyforsitelinks.hasNext()) {
+                                        String wikitype = keyforsitelinks.next();
+                                        if (wikitype.equals("enwiki")) {
+                                            checkwikitype = true;
                                         }
                                     }
-                                    if(checkwikidata){
-                                        wikiid = obj.getString("wikidata");
+                                    //if enwiki has article, call getfact to use text extract api
+                                    if (checkwikitype) {
+                                        JSONObject wikigrab3 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
+                                        String wikititle = wikigrab3.getString("title");
+                                        getFact(wikititle, view, tts, lat, lon, city, widList, wid, widx);
                                     }
+                                } else {
+                                    //what happens when there is no enwiki? you have to try to get a new place, so call function again
+                                    //fact.setText("wait");
+
+                                    //remove nonvalid element from widList
+                                    widList.remove(widx);
+                                    storedwikiid = widList;
+                                    int numplaces = widList.size();
+                                    int randidx = getRandIndex(numplaces);
+                                    String nwid = widList.get(randidx);
+                                    Log.e("TAG", "widList size for getvalidwikiid is: " + numplaces);
+                                    Log.e("TAG", "widList id for getvalidwikiid else is: " + nwid);
+                                    //call function again on different wikiid
+                                    getValidWikiId(city,view,tts,lat,lon,widList,nwid, randidx);
+                                    //getPlaces(city, view, tts, lat, lon);
                                 }
-                                //fact.setText(name);
-                                //pass in all places found from city name
-                                while(name.equals("")) {
-                                    int newidx = getRandIndex(numplaces);
-                                    JSONObject newobj = allplaces.getJSONObject(newidx).getJSONObject("properties");
-                                    name = newobj.getString("name");
-                                    if(!name.equals("")) {
-                                        Iterator<String> checkexistwiki = obj.keys();
-                                        boolean checkwikidata = false;
-                                        while(checkexistwiki.hasNext()) {
-                                            String keyforproperties = checkexistwiki.next();
-                                            if (keyforproperties.equals("wikidata")) {
-                                                checkwikidata = true;
-                                            }
-                                        }
-                                        if(checkwikidata){
-                                            wikiid = obj.getString("wikidata");
-                                        }
-                                    }
-                                }
-                                //https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&ids=Q4347159&sitefilter=enwiki
-                                String nurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&sitefilter=enwiki&ids=" + wikiid;
-                                Request wikidataRequest = new Request.Builder().url(nurl).build();
-                                Call call2 = client.newCall(wikidataRequest);
-                                call2.enqueue(new Callback() {
-                                    @Override
-                                    public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                                        Toast.makeText(getContext(), "Error Getting Data", Toast.LENGTH_SHORT).show();
-                                    }
+                            } catch (JSONException e2) {
 
-                                    @Override
-                                    public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                                        try (ResponseBody responseBody2 = response.body()) {
-                                            if (!response.isSuccessful()) {
-                                                fact.setText("Error");
-                                                throw new IOException();
-                                            } else {
-                                                try {
-                                                    JSONObject wikigrab = new JSONObject(responseBody2.string()).getJSONObject("entities");
-                                                    Iterator<String> keyfortitle = wikigrab.keys();
-                                                    String titlekey = keyfortitle.next();
-                                                    JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
-                                                    String wikititle = wikigrab2.getString("title");
-                                                    getFact(wikititle, view, tts, allplaces, lat, lon, city);
-                                                } catch (JSONException e2) {
-
-                                                }
-
-                                            }
-                                        }
-                                    }
-                                });
-
-                                //getFact(name, view, tts, allplaces);
-
-                            } catch (JSONException e) {
-                                fact.setText("Test cats Error2");
                             }
+
                         }
                     }
                 }
@@ -426,7 +487,7 @@ public class MainFragment extends Fragment {
     }
 
     //getFact -- use wiki textextract api to get pure text from article
-    void getFact(String placename, View view, boolean tts, JSONArray allplaces, double lat, double lon, String city) {
+    void getFact(String placename, View view, boolean tts, double lat, double lon, String city,List<String> widList, String wid, Integer widx) {
         ConnectivityManager connectivityManager = (ConnectivityManager) getActivity().getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkCapabilities networkCapabilities = connectivityManager.getNetworkCapabilities(connectivityManager.getActiveNetwork());
         boolean isAvailable = false;
@@ -441,8 +502,7 @@ public class MainFragment extends Fragment {
             OkHttpClient client = new OkHttpClient();
             //add this to url --> &exsentences=3 to limit to 3 sentences
 
-
-            String url = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exlimit=1&explaintext=1&exsectionformat=plain&format=json&titles=" + placename;
+            String url = "https://en.wikipedia.org/w/api.php?action=query&prop=extracts&exlimit=1&explaintext=1&exsectionformat=plain&exsentences=3&format=json&titles=" + placename;
             Request request = new Request.Builder().url(url).build();
             Call call = client.newCall(request);
             call.enqueue(new Callback() {
@@ -459,107 +519,31 @@ public class MainFragment extends Fragment {
                             //placeinfo[0] = "checking try catch";
                             TextView viewFact = view.findViewById(R.id.txtMainFact);
                             try {
+
                                 JSONObject obj = new JSONObject(responseBody.string()).getJSONObject("query").getJSONObject("pages");
                                 Iterator<String> keyarr = obj.keys(); //get page keys
-                                key = keyarr.next(); //if pageid is -1, there is no description to use, else there is description for facts
-
-                                int max = allplaces.length();
-
+                                key = keyarr.next();
+                                //if pageid is -1, there is no description to use, else there is description for fact
                                 if(key.equals("-1")) {
-                                    String wikiid = "";
-                                    String name = "";
-                                    int randidx = getRandIndex(max); //continuously generate random index until key does not = -1
-                                    JSONObject newobj = allplaces.getJSONObject(randidx).getJSONObject("properties");
-                                    name = newobj.getString("name");
-                                    if(!name.equals("")) {
-                                        Iterator<String> checkexistwiki = obj.keys();
-                                        boolean checkwikidata = false;
-                                        while(checkexistwiki.hasNext()) {
-                                            String keyforproperties = checkexistwiki.next();
-                                            if (keyforproperties.equals("wikidata")) {
-                                                checkwikidata = true;
-                                            }
-                                        }
-                                        if(checkwikidata){
-                                            wikiid = obj.getString("wikidata");
-                                        }
-                                    }
-                                    //wikiid = newobj.getString("wikidata"); //get place name for wikipedia article
-                                    //check if wikiid is nonexistent
-                                    while(name.equals("")) {
-                                        int newidx = getRandIndex(max);
-                                        JSONObject newobj2 = allplaces.getJSONObject(newidx).getJSONObject("properties");
-                                        name = newobj2.getString("name");
-                                        if(!name.equals("")) {
-                                            Iterator<String> checkexistwiki = obj.keys();
-                                            boolean checkwikidata = false;
-                                            while(checkexistwiki.hasNext()) {
-                                                String keyforproperties = checkexistwiki.next();
-                                                if (keyforproperties.equals("wikidata")) {
-                                                    checkwikidata = true;
-                                                }
-                                            }
-                                            if(checkwikidata){
-                                                wikiid = obj.getString("wikidata");
-                                            }
-                                        }
-                                    }
-                                    //https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&ids=Q4347159&sitefilter=enwiki
-                                    String nurl = "https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=sitelinks&sitefilter=enwiki&ids=" + wikiid;
-                                    Request nestedRequest = new Request.Builder().url(nurl).build();
-                                    Call call2 = client.newCall(nestedRequest);
-                                    call2.enqueue(new Callback() {
-                                        @Override
-                                        public void onFailure(@NotNull Call call, @NotNull IOException e) {
-                                            Toast.makeText(getContext(), "Error Getting Data", Toast.LENGTH_SHORT).show();
-                                        }
+                                    //call getplaces again if there is no page to be found to get a new title
+                                    viewFact.setText("wait restart");
 
-                                        @Override
-                                        public void onResponse(@NotNull Call call, @NotNull Response response) throws IOException {
-                                            try (ResponseBody responseBody2 = response.body()) {
-                                                if (!response.isSuccessful()) {
-                                                    viewFact.setText("Error4");
-                                                    throw new IOException();
-                                                } else {
-                                                    try {
-                                                        JSONObject wikigrab = new JSONObject(responseBody2.string()).getJSONObject("entities");
-                                                        Iterator<String> keyfortitle = wikigrab.keys();
-                                                        String titlekey = keyfortitle.next();
-                                                        Iterator<String> keyforpageid = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").keys();
-                                                        boolean checkpageexists = false;
-                                                        String checkenwiki = keyforpageid.next();
-                                                        if(checkenwiki!=null) {
-                                                            if(checkenwiki.equals("enwiki")) {
-                                                                checkpageexists=true;
-                                                            }
-                                                            while(keyforpageid.hasNext()) {
-                                                                String pagekey = keyforpageid.next();
-                                                                if(pagekey.equals("enwiki")) {
-                                                                    checkpageexists = true;
-                                                                }
-                                                            }
-                                                        }
+                                    //remove nonvalid element from widList
+                                    widList.remove(widx);
+                                    storedwikiid = widList;
 
-                                                        if(checkpageexists) {
-                                                            JSONObject wikigrab2 = wikigrab.getJSONObject(titlekey).getJSONObject("sitelinks").getJSONObject("enwiki");
-                                                            String wikititle = wikigrab2.getString("title");
-                                                            getFact(wikititle, view, tts, allplaces,lat,lon,city);
-                                                        } else {
-                                                            //grab another name from allplaces and enter in the title for the new place
-                                                            getPlaces(city,view,tts,lat,lon);
-                                                        }
-
-                                                    } catch (JSONException e2) {
-
-                                                    }
-
-                                                }
-                                            }
-                                        }
-                                    });
-
-                                    // getFact(name, view, tts, allplaces); //call function again for new place
-                                } else { //end big if
+                                    int numplaces = widList.size();
+                                    int randidx = getRandIndex(numplaces);
+                                    String nwid = widList.get(randidx);
+                                    Log.e("TAG", "widList size for getFact restart is: " + numplaces);
+                                    Log.e("TAG", "widList id for getFact restart is: " + nwid);
+                                    //call function again on different wikiid
+                                    getValidWikiId(city,view,tts,lat,lon,widList,nwid,randidx);
+                                } else {
+                                    //if key is not -1, there is an article, so put description up
+                                    int numplaces = widList.size();
+                                    Log.e("TAG", "widList size for getFact else is: " + numplaces);
+                                    Log.e("TAG", "widList id for getFact else is: " + widx);
                                     JSONObject page = obj.getJSONObject(key);
                                     String factdescript = page.getString("extract");
                                     storedfacts.add(factdescript);
@@ -592,8 +576,38 @@ public class MainFragment extends Fragment {
         Random random = new Random();
         // Generates random integers 0 to max-1
         int idx = random.nextInt(max);
-        return idx;
+        
+        //we're making sure to go through all wiki id objects and cycle through
+        //clear list of ints if match size of wikiid
+        if(storedidx.size() == max) {
+            storedidx.clear();
+            Log.e("TAG", "clear idx list");
+            return idx;
+        } else if (storedidx.size() == 0) {
+            //make list of ints if empty list
+            for(int i=0; i<max; i++) {
+                storedidx.add(i);
+                Log.e("TAG", "initializing idx list for getRand is: " + idx);
+            }
+            storedidx.remove(idx);
+            return idx;
+        } else {
+            if(storedidx.contains(idx)) {
+                int findidx = storedidx.indexOf(idx);
+                storedidx.remove(findidx); //remove where idx inside is found
+                Log.e("TAG", "using this idx: " + idx);
+                return idx;
+            } else {
+                while(storedidx.contains(idx) == false) {
+                    int sizeofstore = storedidx.size();
+                    int nidx = random.nextInt(sizeofstore); //pick random new idx from storage list
+                    idx = storedidx.get(nidx);
+                }
+                Log.e("TAG", "new idx: " + idx);
+                int findidx = storedidx.indexOf(idx);
+                storedidx.remove(findidx);
+                return idx;
+            }
+        }
     }
-
-    
 }
